@@ -1,0 +1,6 @@
+pandas
+numpy
+nbformat>=4.2.0
+plotly
+notebook
+sodshock
