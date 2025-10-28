@@ -1,0 +1,133 @@
+5.1. Implementing additional flux limiters
+This is probably the most straightforward extension for you to work on. Initially, I had
+quite a few more flux limiters implemented, but I decided to go for two basic options
+so that you have some room to explore additional ones.
+77
+5.2. Implementing additional Riemann solvers 78
+As a reminder, you can find a good overview of common flux limiters on Wikipedia.
+Pick one and then implement it within the MUSCL scheme as discussed in Section 2.3.1.2.
+You will then also need to extend the enum on flux limiters as discussed in Sec-
+tion 3.1.4. This will allow you to pick your newly implemented flux limiter.
+Try the Superbee, Sweby, and perhaps the van Albada flux limiter. They are straight-
+forward to implement and should be a good place to start. Note that some flux limiters
+are not TVD or 2nd order. This isn\u2019t necessarily a problem. In fact, implement one of
+those as well and see how they stack up against other flux limiters that are TVD and
+second-order.
+5.2. Implementing additional Riemann solvers
+We have looked at the simplest of all Riemann solvers: the Rusanov Riemann solver.
+This is a great way to get started, but there are much better versions available.
+Whenever I write a CFD solver and need a decent selection of Riemann solvers, I
+start with the Rusanov Riemann solver and then implement the HLL Riemann solver
+next. Once that is working, extending it to the HLLC Riemann solver isn\u2019t that much
+of a problem.
+The HLL and HLLC Riemann solvers are great starting points for capturing more of
+the flow with greater accuracy. We spent quite a bit of time in Chapter 4 to look at
+the contact discontinuity, and the HLLC Riemann solver was specifically designed to
+capture this with greater accuracy (the C in HLLC stands for contact, i.e. capturing
+the contact discontinuity).
+The best place to learn about both of them is the book by Toro, who also introduced the
+HLLC Riemann solver. If you have access to Springer\u2019s ebook collection (e.g. through
+your university), then you can access the chapter on the HLL and HLLC Riemann
+solver here.
+If you don\u2019t have access, then you can find an overview of the HLL Riemann solver
+here, and for the HLLC Riemann solver here. However, the above-linked book is really
+the place you want to start to get some more understanding, including a sensible
+summary that walks you through step by step on how to implement both Riemann
+solvers.
+5.3. Implementing WENO schemes
+When we were looking at our numerical schemes to approximate the values at the
+faces, i.e. at i ± 1/2, then we talked about the piecewise constant reconstruction
+(Section 2.3.1.1) and the MUSCL scheme (Section 2.3.1.2).
+However, we saw that the piecewise constant reconstruction really needs a lot of
+points to capture discontinuities well when compared to the MUSCL scheme (i.e. see
+Figure 4.3 and Figure 4.4).
+I briefly mentioned that there is a second type of scheme available, which is called
+the WENO (Weighted Essentially Non-Oscillatory) scheme. These involve a bit more
+5.3. Implementing WENO schemes 79
+work to implement, but they are really powerful in capturing discontinuities, even at
+lower grid resolutions.
+Probably the best description at a very accessible level is provided over at Scholarpe-
+dia, and you could go through this section and try to implement the scheme.
+You\u2019ll need to implement Eq.(1\u20133) first in the article above. Then, you have to compute
+the smoothness indicator \u03b2j as given in Eq.(8), which allows you to compute the non-
+linear weights as given by Eq.(9). With that, you are in a position to obtain the face
+reconstructed values at i ± 1/2 as shown in Eq.(6).
+The article is nicely written, but given that the equations are not presented in the order
+in which they are implemented, I thought of including it here in case you want to try it.
+Additionally, you will need to use a lower-order approximation (e.g. piecewise con-
+stant) near the boundary faces, similar to what we have done in the MUSCL scheme
+(e.g. see lines 2\u20138 in Listing 11).
+In the case of the MUSCL scheme, we only needed to do that for the cells directly
+attached to the boundary. However, in the case of the WENO scheme discussed
+above, we need the first and last two cells to use a lower-order approximation.
+1 // use lower\u2010order scheme near boundaries
+2 for (int variable = 0; variable < 3; ++variable) {
+3 Ufaces[0][FACE::WEST][variable] = U[0][variable];
+4 Ufaces[0][FACE::EAST][variable] = U[0][variable];
+5 Ufaces[1][FACE::WEST][variable] = U[1][variable];
+6 Ufaces[1][FACE::EAST][variable] = U[1][variable];
+7
+8 Ufaces[parameters.numberOfPoints \u2010 2][FACE::WEST][variable] = U[
+parameters.numberOfPoints \u2010 2][variable];
+9 Ufaces[parameters.numberOfPoints \u2010 2][FACE::EAST][variable] = U[
+parameters.numberOfPoints \u2010 2][variable];
+10 Ufaces[parameters.numberOfPoints \u2010 1][FACE::WEST][variable] = U[
+parameters.numberOfPoints \u2010 1][variable];
+11 Ufaces[parameters.numberOfPoints \u2010 1][FACE::EAST][variable] = U[
+parameters.numberOfPoints \u2010 1][variable];
+12 }
+13
+14 // use high\u2010resolution WENO scheme on interior nodes / cells
+15 for (int i = 2; i < parameters.numberOfPoints \u2010 2; i++) {
+16 // Implement Eq.(1\u20103) (polynomial reconstruction at i+(1/2))
+17 // Implement Eq.(8) (smoothness indicator)
+18 // Implement Eq.(9) (non\u2010linear weights)
+19 // Implement Eq.(6) (face reconstruction values at i+(1/2))
+20 }
+Listing 18: Boilerplate code to start the WENO scheme implementation.
+To make things easier, I have provided you with some boilerplate code which you could
+use to get started. This is provided in Listing 18.
+Look at lines 3\u201311. Here, we use the piecewise constant reconstruction for the first
+and last two cells to obtain the face values at i±1/2. Then, on line 15, we loop over all
+5.4. Extending the solver to 2D 80
+cells starting with index i = 2 and going to i < parameters.numberOfPoints \u2010 2.
+As a reminder, when we implemented the MUSCL scheme, we were looping from
+i = 1 to i < parameters.numberOfPoints \u2010 1.
+5.4. Extending the solver to 2D
+Finally, to make things more interesting, we could also extend our solver from 1D to
+2D (or even 3D). It isn\u2019t much more complicated than the 1D case, and, in fact, we
+only need to add one more dimension to our conserved variable vector U and the flux
+vector F(mathbf U ).
+We also need to add an additional loop over the y direction, i.e. whenever we loop
+over the internal cells in the x direction, we also need to loop over the internal cells in
+the y direction. For example, when we have:
+1 for (int variable = 0; variable < 3; ++variable) {
+2 for (int i = 0; i < parameters.numberOfPoints ; i++) {
+3 // do something , e.g. reconstruct values at i+1/2
+4 Ufaces[i][FACE::WEST][variable] = U[i][variable];
+5 }
+6 }
+We need to replace that with a 2D version of the loop, i.e.:
+1 for (int variable = 0; variable < 3; ++variable) {
+2 for (int i = 0; i < parameters.numberOfPoints; i++) {
+3 for (int j = 0; j < parameters.numberOfPoints; j++) {
+4 // do something , e.g. reconstruct values at i+1/2
+5 Ufaces[i][j][FACE::WEST][variable] = U[i][j][variable];
+6 }
+7 }
+8 }
+Notice how I have also added the additional index j to access information in the con-
+served variable vector U.
+Now, you just have to go through the code and make extensions wherever you need.
+The governing equations, by the way, can be derived in a similar way as we did in
+Section 2.2.3, where we obtained the 1D system from the general 3D system (i.e. we
+take the 3D system and remove any derivative that contains either the z direction or
+the w velocity component).
+Granted, making our solver 2D (or 3D) is probably the most involved, as we need to
+make changes at many different points in the code, but it is also not that difficult as
+long as we think which parts need to be modified and which can remain the same.
+Once we have figured that out, it is usually a case of allocating memory for an addi-
+tional index and looping over an additional loop in the y direction.
+If this feels to big of a project, then that\u2019s fine. However, once you get 2D or even 3D
+work, you can investigate some really interesting problems, such as the double Mach
+reflection problem

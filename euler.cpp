@@ -7,7 +7,7 @@
 #include <sstream>
 #include <string>
 
-enum SCHEME { CONSTANT = 0, MUSCL};
+enum SCHEME { CONSTANT = 0, MUSCL, WENO};
 enum LIMITER { NONE = 0, MINMOD, VANLEER};
 enum FACE {WEST = 0, EAST};
 
@@ -26,7 +26,7 @@ int main() {
 
   /* ---------- Pre-processing ---------- */
     
-    auto numericalScheme = SCHEME::MUSCL;
+    auto numericalScheme = SCHEME::WENO;
     auto limiter = LIMITER::VANLEER;
     caseParameters parameters;
 
@@ -132,6 +132,81 @@ int main() {
               - 0.5 * psiL * du_i_plus_half;
             Ufaces[i][FACE::EAST][variable] = U[i][variable]
               + 0.5 * psiR * du_i_minus_half;
+          }
+        }
+      } else if (numericalScheme == SCHEME::WENO) {
+        // use lower-order scheme near boundaries (first and last two cells)
+        for (int variable = 0; variable < 3; ++variable) {
+          Ufaces[0][FACE::WEST][variable] = U[0][variable];
+          Ufaces[0][FACE::EAST][variable] = U[0][variable];
+          Ufaces[1][FACE::WEST][variable] = U[1][variable];
+          Ufaces[1][FACE::EAST][variable] = U[1][variable];
+
+          Ufaces[parameters.numberOfPoints - 2][FACE::WEST][variable] = U[parameters.numberOfPoints - 2][variable];
+          Ufaces[parameters.numberOfPoints - 2][FACE::EAST][variable] = U[parameters.numberOfPoints - 2][variable];
+          Ufaces[parameters.numberOfPoints - 1][FACE::WEST][variable] = U[parameters.numberOfPoints - 1][variable];
+          Ufaces[parameters.numberOfPoints - 1][FACE::EAST][variable] = U[parameters.numberOfPoints - 1][variable];
+        }
+
+        // use high-resolution WENO scheme on interior nodes / cells
+        for (int i = 2; i < parameters.numberOfPoints - 2; i++) {
+          for (int variable = 0; variable < 3; ++variable) {
+            // WENO5 reconstruction for i+1/2 face
+            // Three stencils for polynomial reconstruction
+            double v0 = U[i-2][variable];
+            double v1 = U[i-1][variable];
+            double v2 = U[i][variable];
+            double v3 = U[i+1][variable];
+            double v4 = U[i+2][variable];
+
+            // Eq.(1-3): Polynomial reconstruction at i+1/2
+            double p0 = (2.0*v0 - 7.0*v1 + 11.0*v2) / 6.0;
+            double p1 = (-v1 + 5.0*v2 + 2.0*v3) / 6.0;
+            double p2 = (2.0*v2 + 5.0*v3 - v4) / 6.0;
+
+            // Eq.(8): Smoothness indicators
+            double beta0 = (13.0/12.0) * std::pow(v0 - 2.0*v1 + v2, 2) + 
+                           (1.0/4.0) * std::pow(v0 - 4.0*v1 + 3.0*v2, 2);
+            double beta1 = (13.0/12.0) * std::pow(v1 - 2.0*v2 + v3, 2) + 
+                           (1.0/4.0) * std::pow(v1 - v3, 2);
+            double beta2 = (13.0/12.0) * std::pow(v2 - 2.0*v3 + v4, 2) + 
+                           (1.0/4.0) * std::pow(3.0*v2 - 4.0*v3 + v4, 2);
+
+            // Linear weights
+            double d0 = 0.1;
+            double d1 = 0.6;
+            double d2 = 0.3;
+            double epsilon = 1e-6;
+
+            // Eq.(9): Non-linear weights
+            double alpha0 = d0 / std::pow(epsilon + beta0, 2);
+            double alpha1 = d1 / std::pow(epsilon + beta1, 2);
+            double alpha2 = d2 / std::pow(epsilon + beta2, 2);
+            double alphaSum = alpha0 + alpha1 + alpha2;
+
+            double w0 = alpha0 / alphaSum;
+            double w1 = alpha1 / alphaSum;
+            double w2 = alpha2 / alphaSum;
+
+            // Eq.(6): Face reconstruction value at i+1/2
+            Ufaces[i][FACE::EAST][variable] = w0*p0 + w1*p1 + w2*p2;
+
+            // For WEST face of cell i, we need reconstruction at i-1/2
+            // Use same approach with shifted stencils
+            p0 = (2.0*v4 - 7.0*v3 + 11.0*v2) / 6.0;
+            p1 = (-v3 + 5.0*v2 + 2.0*v1) / 6.0;
+            p2 = (2.0*v2 + 5.0*v1 - v0) / 6.0;
+
+            alpha0 = d0 / std::pow(epsilon + beta2, 2);
+            alpha1 = d1 / std::pow(epsilon + beta1, 2);
+            alpha2 = d2 / std::pow(epsilon + beta0, 2);
+            alphaSum = alpha0 + alpha1 + alpha2;
+
+            w0 = alpha0 / alphaSum;
+            w1 = alpha1 / alphaSum;
+            w2 = alpha2 / alphaSum;
+
+            Ufaces[i][FACE::WEST][variable] = w0*p0 + w1*p1 + w2*p2;
           }
         }
       }      
