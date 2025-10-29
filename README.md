@@ -42,6 +42,10 @@ The two-dimensional solver `euler2d.cpp` extends the formulation using dimension
 
 The two-dimensional solver outputs vtkt files that can be opened directly in ParaView.
 
+![./screenshot.png](./screenshot.png)
+
+visualization of the 2d shock problem in paraview
+
 ## run
 
 Both solvers are written in C++17 and can be compiled using g++ or CMake. For direct compilation:
