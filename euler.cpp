@@ -8,7 +8,7 @@
 #include <string>
 
 enum SCHEME { CONSTANT = 0, MUSCL, WENO};
-enum LIMITER { NONE = 0, MINMOD, VANLEER};
+enum LIMITER { NONE = 0, MINMOD, VANLEER, VANALBADA};
 enum FACE {WEST = 0, EAST};
 
 struct caseParameters {
@@ -26,7 +26,7 @@ int main() {
 
   /* ---------- Pre-processing ---------- */
     
-    auto numericalScheme = SCHEME::WENO;
+    auto numericalScheme = SCHEME::MUSCL;
     auto limiter = LIMITER::VANLEER;
     caseParameters parameters;
 
@@ -126,6 +126,9 @@ int main() {
             } else if (limiter == LIMITER::VANLEER) {
               psiL = (rL + std::fabs(rL)) / (1.0 + std::fabs(rL));
               psiR = (rR + std::fabs(rR)) / (1.0 + std::fabs(rR));
+            } else if (limiter == LIMITER::VANALBADA) {
+              psiL = (rL * rL + rL) / (rL * rL + 1.0);
+              psiR = (rR * rR + rR) / (rR * rR + 1.0);
             }
 
             Ufaces[i][FACE::WEST][variable] = U[i][variable]
